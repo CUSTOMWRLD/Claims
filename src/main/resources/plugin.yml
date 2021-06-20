@@ -1,0 +1,7 @@
+name: Claims
+version: ${project.version}
+main: com.customwrld.claims.Claims
+api-version: 1.16
+load: POSTWORLD
+authors: [BitCrack, oHate]
+softdepend: [ProtocolLib, CustomLib, Survival]
