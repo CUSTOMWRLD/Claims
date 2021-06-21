@@ -50,12 +50,13 @@ public class PlotListeners {
         public void blockBroken(BlockBreakEvent event) {
 
             var block = event.getBlock();
+            var location = block.getLocation();
 
-            var plot = Claims.plotsManager.getPlotOnLocation(block.getWorld(), block.getX(), block.getZ());
-            if (plot == null) { return; }
+            var plot = Claims.plotsManager.getPlotOnLocation(location);
+            if(plot == null) { return; }
 
             var player = event.getPlayer();
-            if (!plot.hasPermission(player, PlotPermission.BLOCK_BREAK)) {
+            if(!plot.hasPermission(player, PlotPermission.BLOCK_BREAK)) {
                 var blockLocation = block.getLocation();
                 playAccessDeniedEffect(player, null, blockLocation.add(0, 1, 0));
                 event.setCancelled(true);
@@ -67,12 +68,13 @@ public class PlotListeners {
         public void blockPlaced(BlockPlaceEvent event) {
 
             var block = event.getBlock();
+            var location = block.getLocation();
 
-            var plot = Claims.plotsManager.getPlotOnLocation(block.getWorld(), block.getX(), block.getZ());
-            if (plot == null) { return; }
+            var plot = Claims.plotsManager.getPlotOnLocation(location);
+            if(plot == null) { return; }
 
             var player = event.getPlayer();
-            if (!plot.hasPermission(player, PlotPermission.BLOCK_PLACE)) {
+            if(!plot.hasPermission(player, PlotPermission.BLOCK_PLACE)) {
                 var blockLocation = block.getLocation();
                 playAccessDeniedEffect(player, null, blockLocation);
                 event.setCancelled(true);
@@ -83,16 +85,19 @@ public class PlotListeners {
         @EventHandler
         public void blockPlace(BlockMultiPlaceEvent event) {
 
-            var block = event.getBlock();
-
             for(BlockState newBlockState : event.getReplacedBlockStates()) {
-                var plot = Claims.plotsManager.getPlotOnLocation(newBlockState.getWorld(), newBlockState.getX(), newBlockState.getZ());
-                if (plot == null) { return; }
+                var location = newBlockState.getLocation();
+
+                var plot = Claims.plotsManager.getPlotOnLocation(location);
+                if(plot == null) { return; }
 
                 var player = event.getPlayer();
-                if (!plot.hasPermission(player, PlotPermission.BLOCK_PLACE)) {
+                if(!plot.hasPermission(player, PlotPermission.BLOCK_PLACE)) {
+                    var block = event.getBlock();
                     var blockLocation = block.getLocation();
+
                     playAccessDeniedEffect(player, null, blockLocation);
+
                     event.setCancelled(true);
                     break;
                 }
@@ -106,11 +111,13 @@ public class PlotListeners {
             var block = event.getClickedBlock();
             if(block == null) { return; }
 
-            var plot = Claims.plotsManager.getPlotOnLocation(block.getWorld(), block.getX(), block.getZ());
+            var location = block.getLocation();
+
+            var plot = Claims.plotsManager.getPlotOnLocation(location);
             if(plot == null) { return; }
 
             var player = event.getPlayer();
-            if (!plot.hasPermission(player, PlotPermission.BLOCK_INTERACT)) {
+            if(!plot.hasPermission(player, PlotPermission.BLOCK_INTERACT)) {
                 playAccessDeniedEffect(player, null, block.getLocation());
                 event.setUseInteractedBlock(Event.Result.DENY);
                 event.setCancelled(true);
@@ -126,17 +133,17 @@ public class PlotListeners {
 
             var location = potion.getLocation();
 
-            var plot = Claims.plotsManager.getPlotOnLocation(potion.getWorld(), location.getBlockX(), location.getBlockZ());
-            if (plot == null) { return; }
+            var plot = Claims.plotsManager.getPlotOnLocation(location);
+            if(plot == null) { return; }
 
-            if (source instanceof Player player && !plot.hasPermission(player, PlotPermission.PLAYER_SPLASH_POTIONS)) {
+            if(source instanceof Player player && !plot.hasPermission(player, PlotPermission.PLAYER_SPLASH_POTIONS)) {
                 event.setCancelled(true);
 
-            } else if (source instanceof BlockProjectileSource blockSource) {
+            } else if(source instanceof BlockProjectileSource blockSource) {
                 var block = blockSource.getBlock();
                 var sourceLocation = block.getLocation();
 
-                if (!plot.isInside(sourceLocation)) { event.setCancelled(true); }
+                if(!plot.isInside(sourceLocation)) { event.setCancelled(true); }
             }
 
         }
@@ -152,9 +159,9 @@ public class PlotListeners {
             var location = victim.getLocation();
 
             var plot = Claims.plotsManager.getPlotOnLocation(location);
-            if (plot == null) { return; }
+            if(plot == null) { return; }
 
-            if (!plot.hasPermission(player, PlotPermission.PLAYER_ATTACK_ANIMALS)) { event.setCancelled(true); }
+            if(!plot.hasPermission(player, PlotPermission.PLAYER_ATTACK_ANIMALS)) { event.setCancelled(true); }
 
         }
 
@@ -171,7 +178,7 @@ public class PlotListeners {
                 var blockLocation = damager.getLocation();
 
                 var plot = Claims.plotsManager.getPlotOnLocation(victimLocation);
-                if (plot == null || plot.isInside(blockLocation)) { return; }
+                if(plot == null || plot.isInside(blockLocation)) { return; }
 
                 event.setCancelled(true);
             }
@@ -274,7 +281,7 @@ public class PlotListeners {
 
             var location = victim.getLocation();
 
-            var plot = Claims.plotsManager.getPlotOnLocation(location.getWorld(), location.getBlockX(), location.getBlockZ());
+            var plot = Claims.plotsManager.getPlotOnLocation(location);
             if (plot == null) { return; }
 
             //TODO Check if a player has PvP disabled?
@@ -314,7 +321,7 @@ public class PlotListeners {
 
             var location = entity.getLocation();
 
-            var plot = Claims.plotsManager.getPlotOnLocation(location.getWorld(), location.getBlockX(), location.getBlockZ());
+            var plot = Claims.plotsManager.getPlotOnLocation(location);
             if (plot == null) { return; }
 
             if (!plot.isOptionEnabled(PlotOption.MOB_SPAWN)) { event.setCancelled(true); }
