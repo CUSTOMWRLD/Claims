@@ -40,12 +40,12 @@ public class WandListeners {
         @EventHandler
         public void disableEnchantingTable(PrepareItemEnchantEvent event) {
 
-            Player player = event.getEnchanter();
+            var player = event.getEnchanter();
             if(!SessionsManager.isClaiming(player)) { return; }
 
             ItemStack item = event.getItem();
 
-            ClaimingSession session = SessionsManager.getClaimingSession(player);
+            var session = SessionsManager.getClaimingSession(player);
             if(session == null) { return; }
 
             ItemStack wand = session.getWand();
@@ -57,7 +57,7 @@ public class WandListeners {
 
         @EventHandler
         public void disableDropping(PlayerDropItemEvent event) {
-            Player player = event.getPlayer();
+            var player = event.getPlayer();
             if (SessionsManager.isClaiming(player)) { event.setCancelled(true); }
         }
 
@@ -68,25 +68,21 @@ public class WandListeners {
         @EventHandler
         public void disableRepairAndEnchant(PrepareResultEvent event) {
 
-            Player player = (Player) event.getView().getPlayer();
+            var player = (Player) event.getView().getPlayer();
             if(!SessionsManager.isClaiming(player)) { return; }
 
-            ClaimingSession session = SessionsManager.getClaimingSession(player);
+            var session = SessionsManager.getClaimingSession(player);
             if(session == null) { return; }
 
             ItemStack wand = session.getWand();
 
-            if (event.getInventory() instanceof AnvilInventory) {
+            if ((event.getInventory() instanceof AnvilInventory anvilInventory &&
+                    (wand == anvilInventory.getFirstItem() || wand == anvilInventory.getSecondItem())) ||
 
-                //Anvil
-                AnvilInventory inv = (AnvilInventory) event.getInventory();
-                if (wand == inv.getFirstItem() || wand == inv.getSecondItem()) { event.setResult(new ItemStack(Material.AIR)); }
+                    (event.getInventory() instanceof GrindstoneInventory grindstoneInventory &&
+                    (wand == grindstoneInventory.getUpperItem() || wand == grindstoneInventory.getLowerItem()))) {
 
-            } else if (event.getInventory() instanceof GrindstoneInventory) {
-
-                //Grindstone
-                GrindstoneInventory inv = (GrindstoneInventory) event.getInventory();
-                if (wand == inv.getUpperItem() || wand == inv.getLowerItem()) { event.setResult(new ItemStack(Material.AIR)); }
+                event.setResult(new ItemStack(Material.AIR));
 
             }
 
@@ -101,20 +97,22 @@ public class WandListeners {
         @EventHandler
         public void disableSwitchingSlots(PlayerItemHeldEvent event) {
 
-            Player player = event.getPlayer();
+            var player = event.getPlayer();
             if(!SessionsManager.isClaiming(player)) { return; }
 
-            ClaimingSession session = SessionsManager.getClaimingSession(player);
+            var session = SessionsManager.getClaimingSession(player);
             if(session == null) { return; }
 
-            PlayerInventory inventory = player.getInventory();
             int slot = session.getWandSlot();
 
             event.setCancelled(true);
 
             //Fix wrong slot being selected sometimes after changing
-            new BukkitRunnable() { @Override public void run() { inventory.setHeldItemSlot(slot); } }
-            .runTaskLater(Claims.get(), 5);
+            final PlayerInventory inventory = player.getInventory();
+
+            new BukkitRunnable() {
+                @Override public void run() { inventory.setHeldItemSlot(slot); }
+            }.runTaskLater(Claims.get(), 5);
 
         }
 
