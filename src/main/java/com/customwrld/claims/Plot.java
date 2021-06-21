@@ -10,6 +10,7 @@ import com.customwrld.claims.permissions.PlotPermissionLevel;
 import com.customwrld.claims.permissions.groups.GroupHolder;
 import com.customwrld.claims.permissions.groups.PlotGroup;
 import com.customwrld.claims.utils.GeometryUtils;
+import com.customwrld.claims.utils.UtilizedPolygon;
 import com.customwrld.customlib.hologram.Hologram;
 import com.customwrld.customlib.hologram.component.HologramTextComponent;
 import com.customwrld.customlib.util.MetadataUtil;
@@ -24,7 +25,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.NumberConversions;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.Polygon;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -40,7 +40,7 @@ public class Plot {
     @Setter private long createdAt;
     @Setter private long lastModifiedAt;
 
-    private Polygon polygon;
+    private UtilizedPolygon polygon;
 
     private Set<Chunk> chunks;
 
@@ -69,7 +69,7 @@ public class Plot {
             coordinates[i] = new Coordinate(vertexDocument.getInteger("x", 0), (int) vertexDocument.get("z", 0));
         }
 
-        polygon = new GeometryFactory().createPolygon(coordinates);
+        polygon = new UtilizedPolygon(world, new GeometryFactory().createPolygon(coordinates));
 
         chunks = new HashSet<>();
 
@@ -104,7 +104,7 @@ public class Plot {
         createdAt = currentTime;
         lastModifiedAt = currentTime;
 
-        polygon = session.createPolygon(null, null);
+        polygon = session.createPolygon(world, null, null);
 
         Location firstCorner = session.getFirstCorner();
         Location secondCorner = session.getSecondCorner();
@@ -149,7 +149,7 @@ public class Plot {
         var middleHologram = new Hologram(new Location(world, 0, 4, 0));
         middleHologram.append(new HologramTextComponent(ChatColor.BLUE.toString() + ChatColor.BOLD + name));
         middleHologram.append(HologramTextComponent.empty());
-        middleHologram.append(new HologramTextComponent(ChatColor.WHITE.toString() + ChatColor.BOLD + "Size: " + NumberConversions.round(GeometryUtils.getAccuratePolygon(polygon).getArea()) + " Blocks"));
+        middleHologram.append(new HologramTextComponent(ChatColor.WHITE.toString() + ChatColor.BOLD + "Size: " + NumberConversions.round(polygon.toAccurate().getArea()) + " Blocks"));
 
         preview.setMiddleHologram(middleHologram);
 
@@ -273,7 +273,7 @@ public class Plot {
         if (owner != other.getOwner() || world != other.getWorld() || !polygon.intersects(other.getPolygon()))
             return;
 
-        polygon = GeometryUtils.dissolvePoints(polygon.union(other.getPolygon()));
+        this.polygon = GeometryUtils.dissolvePoints(this.polygon.union(other.getPolygon()));
         generateChunks();
     }
 
@@ -281,24 +281,24 @@ public class Plot {
         if (owner != trimmer.getOwner() || world != trimmer.getWorld() || !polygon.intersects(trimmer.getPolygon()))
             return;
 
-        polygon = new GeometryFactory().createPolygon(polygon.difference(trimmer.getPolygon()).getCoordinates());
+        this.polygon = this.polygon.difference(trimmer.getPolygon());
     }
 
     //Polygon - Boundaries
     public boolean isInside(World world, int x, int z) {
-        return this.world == world && polygon.intersects(new GeometryFactory().createPoint(new Coordinate(x, z)));
+        return this.polygon.intersects(world, x, z);
     }
 
     public boolean isInside(Location location) {
-        return isInside(location.getWorld(), location.getBlockX(), location.getBlockZ());
+        return this.polygon.intersects(location);
     }
 
     public boolean isOnOutline(World world, int x, int z) {
-        return this.world == world && polygon.touches(new GeometryFactory().createPoint(new Coordinate(x, z)));
+        return this.polygon.touches(world, x, z);
     }
 
     public boolean isOnOutline(Location location) {
-        return isOnOutline(location.getWorld(), location.getBlockX(), location.getBlockZ());
+        return this.polygon.touches(location);
     }
 
     //Data Transformers

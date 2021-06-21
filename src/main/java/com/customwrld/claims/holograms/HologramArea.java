@@ -2,6 +2,7 @@ package com.customwrld.claims.holograms;
 
 import com.comphenix.protocol.wrappers.WrappedBlockData;
 import com.customwrld.claims.utils.GeometryUtils;
+import com.customwrld.claims.utils.UtilizedPolygon;
 import com.customwrld.customlib.hologram.Hologram;
 import com.customwrld.customlib.util.LocationUtil;
 import lombok.Getter;
@@ -10,8 +11,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
-import org.locationtech.jts.geom.Point;
-import org.locationtech.jts.geom.Polygon;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -24,7 +23,7 @@ public class HologramArea {
 
     @Getter private List<Player> viewers = new ArrayList<>();
 
-    @Getter private Polygon polygon;
+    @Getter private UtilizedPolygon polygon;
     @Getter private boolean isUpdating;
 
     @Getter private List<HologramLine> lines;
@@ -42,13 +41,13 @@ public class HologramArea {
     @Getter @Setter private BiConsumer<Player, HologramArea> hologramModifier;
     @Getter @Setter private BiConsumer<Player, HologramLine> hologramLineModifier;
 
-    private HologramArea(World world, Polygon polygon, boolean highestBlocksOnly) {
+    private HologramArea(World world, UtilizedPolygon polygon, boolean highestBlocksOnly) {
         this.world = world;
         this.polygon = polygon;
         this.highestBlocksOnly = highestBlocksOnly;
     }
 
-    public HologramArea(World world, Polygon polygon, boolean highestBlocksOnly,
+    public HologramArea(World world, UtilizedPolygon polygon, boolean highestBlocksOnly,
                         Material lineMaterial, Material cornerMaterial, Material startCornerMaterial, Material endCornerMaterial,
                         Hologram startHologram, Hologram middleLineHologram, Hologram endHologram) {
 
@@ -87,7 +86,7 @@ public class HologramArea {
 
     }
 
-    public HologramArea(World world, Polygon polygon, boolean highestBlocksOnly,
+    public HologramArea(World world, UtilizedPolygon polygon, boolean highestBlocksOnly,
                         Material lineMaterial, Material cornerMaterial,
                         Hologram startHologram, Hologram middleLineHologram, Hologram endHologram) {
 
@@ -97,7 +96,7 @@ public class HologramArea {
 
     }
 
-    public HologramArea(World world, Polygon polygon, boolean highestBlocksOnly,
+    public HologramArea(World world, UtilizedPolygon polygon, boolean highestBlocksOnly,
                         Material lineMaterial, Material cornerMaterial,
                         Hologram middleLineHologram) {
 
@@ -107,7 +106,7 @@ public class HologramArea {
 
     }
 
-    public HologramArea(World world, Polygon polygon, boolean highestBlocksOnly,
+    public HologramArea(World world, UtilizedPolygon polygon, boolean highestBlocksOnly,
                         Material lineMaterial, Material cornerMaterial, Material startCornerMaterial, Material endCornerMaterial) {
 
         this(world, polygon, highestBlocksOnly,
@@ -115,7 +114,7 @@ public class HologramArea {
                 null, null, null);
     }
 
-    public HologramArea(World world, Polygon polygon, boolean highestBlocksOnly,
+    public HologramArea(World world, UtilizedPolygon polygon, boolean highestBlocksOnly,
                         Material lineMaterial, Material cornerMaterial, Material startCornerMaterial, Material endCornerMaterial,
                         Hologram middleLineHologram) {
 
@@ -124,7 +123,7 @@ public class HologramArea {
                 null, middleLineHologram, null);
     }
 
-    public HologramArea(World world, Polygon polygon, boolean highestBlocksOnly,
+    public HologramArea(World world, UtilizedPolygon polygon, boolean highestBlocksOnly,
                         Material lineMaterial, Material cornerMaterial) {
 
         this(world, polygon, highestBlocksOnly,
@@ -192,7 +191,7 @@ public class HologramArea {
 
     }
 
-    public void updateShape(Polygon polygon) {
+    public void updateShape(UtilizedPolygon polygon) {
 
         this.isUpdating = true;
 
@@ -238,7 +237,7 @@ public class HologramArea {
 
     public WrappedBlockData retainBlock(Player viewer, Location location, WrappedBlockData blockData) {
 
-        if(!this.polygon.touches(GeometryUtils.bukkitLocationToJTSPoint(location))) { return null; }
+        if(!this.polygon.touches(location)) { return null; }
 
         if(hologramModifier != null) { hologramModifier.accept(viewer, this); }
 
@@ -253,12 +252,12 @@ public class HologramArea {
 
     public void drawBlock(Player viewer, Location location) {
 
-        Point point = GeometryUtils.bukkitLocationToJTSPoint(location);
-        if(!this.polygon.touches(point)) { return; }
+        if(!this.polygon.touches(location)) { return; }
 
         if(hologramModifier != null) { hologramModifier.accept(viewer, this); }
 
-        if(GeometryUtils.isPointAVertexOfGeometry(this.polygon, point)) {
+        var point = GeometryUtils.bukkitLocationToJTSPoint(location);
+        if(GeometryUtils.isPointAVertexOfPolygon(this.polygon, point)) {
             this.lines.forEach(line -> {
                 if(hologramLineModifier != null) { hologramLineModifier.accept(viewer, line); }
                 line.drawCorners(viewer, startCornerMaterial, endCornerMaterial);

@@ -2,7 +2,6 @@ package com.customwrld.claims.utils;
 
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.block.BlockFace;
 import org.locationtech.jts.geom.*;
 
 import java.util.ArrayList;
@@ -12,10 +11,10 @@ import java.util.function.Consumer;
 
 public class GeometryUtils {
 
-    public static boolean isPointAVertexOfGeometry(Geometry geometry, Point point) {
-        if(!geometry.touches(point)) { return false; } //The point needs to be either on border or in the corner
+    public static boolean isPointAVertexOfPolygon(UtilizedPolygon polygon, Point point) {
+        if(!polygon.touches(null, point)) { return false; } //The point needs to be either on border or in the corner
 
-        for(Coordinate coordinate : geometry.getCoordinates()) {
+        for(Coordinate coordinate : polygon.getCoordinates()) {
             if(coordinate.equals(point.getCoordinate())) { return true; }
         }
 
@@ -32,25 +31,34 @@ public class GeometryUtils {
         });
     }
 
-    public static Polygon dissolvePoints(Geometry polygon) {
+    public static UtilizedPolygon dissolvePoints(UtilizedPolygon utilizedPolygon) {
+        var polygon = utilizedPolygon.getPolygon();
+
         List<Coordinate> coordinates = new ArrayList<>(Arrays.asList(polygon.getCoordinates()));
         for(int i = 1; i < coordinates.size(); i++) {
-            if(isVertex(coordinates, i)) {
-                coordinates.add(coordinates.get(i));
-                break;
-            }
+            if(!isVertex(coordinates, i)) { continue; }
+
+            coordinates.add(coordinates.get(i));
+            break;
         }
+
         boolean isOriginOnEdge = false;
+
         for (int i = 0; i < coordinates.size(); i++) {
             if (i + 2 < coordinates.size()) {
-                Coordinate current = coordinates.get(i);
-                Coordinate next = coordinates.get(i + 1);
-                Coordinate last = coordinates.get(i + 2);
-                if ((current.getX() != next.getX() && current.getY() != next.getY()) || (next.getX() != last.getX() && next.getY() != last.getY())) {
+                var current = coordinates.get(i);
+                var next = coordinates.get(i + 1);
+                var last = coordinates.get(i + 2);
+
+                if ((current.getX() != next.getX() && current.getY() != next.getY()) ||
+                        (next.getX() != last.getX() && next.getY() != last.getY())) {
+
                     return null; //Weird shit happening, this is a diagonal line??
                 }
 
-                if ((current.getX() == next.getX() && next.getX() == last.getX()) || (current.getY() == next.getY() && next.getY() == last.getY())) {
+                if ((current.getX() == next.getX() && next.getX() == last.getX()) ||
+                        (current.getY() == next.getY() && next.getY() == last.getY())) {
+
                     coordinates.remove(i + 1);
                     if (i + 2 >= coordinates.size()) { //Origin vertex was lying on an edge
                         coordinates.remove(0);
@@ -61,11 +69,13 @@ public class GeometryUtils {
                 }
             }
         }
-        if (!isOriginOnEdge) { //Origin vertex wasn't lying on an edge
+
+        if (!isOriginOnEdge) //Origin vertex wasn't lying on an edge
             coordinates.remove(coordinates.size() - 1);
-        }
-        Coordinate[] l = coordinates.toArray(new Coordinate[0]);
-        return new GeometryFactory().createPolygon(l);
+
+        Coordinate[] coordinatesArr = coordinates.toArray(new Coordinate[0]);
+
+        return new UtilizedPolygon(utilizedPolygon.getWorld(), new GeometryFactory().createPolygon(coordinatesArr));
     }
 
     public static boolean isVertex(List<Coordinate> coordinates, int coordinateId) {
@@ -85,11 +95,12 @@ public class GeometryUtils {
             next = coordinates.get(coordinateId + 1);
         }
 
-        return !((prev.getX() == coordinate.getX() && coordinate.getX() == next.getX()) || (prev.getY() == coordinate.getY() && coordinate.getY() == next.getY()));
+        return !((prev.getX() == coordinate.getX() && coordinate.getX() == next.getX()) ||
+                (prev.getY() == coordinate.getY() && coordinate.getY() == next.getY()));
     }
 
-    //TODO Broken
-    public static List<Coordinate> getGridCoordinatesInPolygon(Polygon polygon, int gridSize) {
+    public static List<Coordinate> getGridCoordinatesInPolygon(UtilizedPolygon utilizedPolygon, int gridSize) {
+        var polygon = utilizedPolygon.getPolygon();
         var envelope = polygon.getEnvelopeInternal();
 
         double minX = envelope.getMinX();
@@ -104,7 +115,7 @@ public class GeometryUtils {
         for(var x = minX; x < maxX; x += Math.min(gridSize, maxX)) {
             for(var y = minY; y < maxY; y += Math.min(gridSize, maxY)) {
                 var coordinate = new Coordinate(x, y);
-                if(polygon.covers(factory.createPoint(coordinate))) {
+                if(utilizedPolygon.covers(null, coordinate)) {
                     coordinates.add(coordinate);
                 }
             }
@@ -134,51 +145,6 @@ public class GeometryUtils {
                 if(ascending) { j += spacing; } else { j -= spacing; }
             }
         }
-    }
-
-    public static Polygon getAccuratePolygon(Polygon polygon) {
-        Coordinate[] prevCoordinates = polygon.getCoordinates();
-        Coordinate[] coordinates = new Coordinate[prevCoordinates.length];
-
-        Coordinate firstVertex = prevCoordinates[0];
-
-        Coordinate prevVertex = prevCoordinates[prevCoordinates.length - 2];
-        Coordinate nextVertex = prevCoordinates[1];
-
-        AbsoluteTurnDirection turnDirection;
-
-        BlockFace outwardsDirection;
-        boolean isInside;
-
-        Coordinate previous = prevVertex;
-        for(var i = 0; i < prevCoordinates.length - 1; i++) {
-            turnDirection = getTurnDirection(prevCoordinates[i], previous, prevCoordinates[i + 1]);
-
-            Coordinate current = prevCoordinates[i].copy();
-            Coordinate next = prevCoordinates[i + 1].copy();
-
-            Coordinate fullBlockOffset = turnDirection.getOffsetToFullBlock();
-
-            current.setX(current.getX() + fullBlockOffset.getX());
-            current.setY(current.getY() + fullBlockOffset.getY());
-
-            coordinates[i] = current;
-            coordinates[i + 1] = next;
-
-            previous = prevCoordinates[i];
-        }
-
-        turnDirection = getTurnDirection(prevCoordinates[prevCoordinates.length - 1], prevCoordinates[prevCoordinates.length - 2], prevCoordinates[1]);
-        Coordinate last = prevCoordinates[prevCoordinates.length - 1].copy();
-
-        Coordinate fullBlockOffset = turnDirection.getOffsetToFullBlock();
-
-        last.setX(last.getX() + fullBlockOffset.getX());
-        last.setY(last.getY() + fullBlockOffset.getY());
-
-        coordinates[coordinates.length - 1] = last;
-
-        return new GeometryFactory().createPolygon(coordinates);
     }
 
     public static boolean isNextFragmentInsideBlock(AbsoluteTurnDirection turnDirection) {

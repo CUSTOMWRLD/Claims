@@ -3,6 +3,7 @@ package com.customwrld.claims;
 import com.customwrld.claims.holograms.HologramArea;
 import com.customwrld.claims.managers.PreviewManager;
 import com.customwrld.claims.utils.GeometryUtils;
+import com.customwrld.claims.utils.UtilizedPolygon;
 import com.customwrld.customlib.hologram.Hologram;
 import com.customwrld.customlib.hologram.component.AbstractHologramComponent;
 import com.customwrld.customlib.hologram.component.HologramItemComponent;
@@ -18,12 +19,8 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.Point;
-import org.locationtech.jts.geom.Polygon;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,19 +35,12 @@ public class ClaimingSession {
     @Getter private final int wandSlot;
 
     @Getter private Location firstCorner;
-    //private Hologram firstCornerHolo;
-
     @Getter private Location secondCorner;
-    //private Hologram secondCornerHolo;
+
+    @Getter private UtilizedPolygon polygon;
 
     @Getter private World world;
     @Getter @Setter private WandAction operation;
-
-    //Additional holograms
-    /*private Hologram sizeHoloX1;
-    private Hologram sizeHoloX2;
-    private Hologram sizeHoloZ1;
-    private Hologram sizeHoloZ2;*/
 
     @Getter HologramArea hologramArea;
 
@@ -58,8 +48,6 @@ public class ClaimingSession {
     @Getter Hologram secondCornerHologram;
 
     @Getter Hologram middleHologram;
-
-    //private Hologram infoHolo;
 
     //Cancelling
     private int prepareCancelTime;
@@ -144,7 +132,9 @@ public class ClaimingSession {
 
                 if (reselected) {
 
-                    hologramArea.updateShape(createPolygon(firstCorner, secondCorner));
+                    World world = firstCorner.getWorld();
+
+                    hologramArea.updateShape(createPolygon(world, firstCorner, secondCorner));
 
                     int sizeX = Math.abs(firstCorner.getBlockX() - secondCorner.getBlockX()) + 1;
                     int sizeZ = Math.abs(firstCorner.getBlockZ() - secondCorner.getBlockZ()) + 1;
@@ -184,6 +174,7 @@ public class ClaimingSession {
 
             if(isSelected()) {
 
+                polygon = createPolygon(null, null, null);
                 createHolograms(cornerType, loc);
 
                 this.owner.playSound(this.owner.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
@@ -212,14 +203,8 @@ public class ClaimingSession {
     public Set<Chunk> getChunks() {
         Set<Chunk> chunks = new HashSet<>();
 
-        List<Coordinate> coordinates = GeometryUtils.getGridCoordinatesInPolygon(new GeometryFactory()
-                .createPolygon(new Coordinate[]{
-                        new Coordinate(firstCorner.getBlockX(), firstCorner.getBlockZ()),
-                        new Coordinate(secondCorner.getBlockX(), firstCorner.getBlockZ()),
-                        new Coordinate(secondCorner.getBlockX(), secondCorner.getBlockZ()),
-                        new Coordinate(secondCorner.getBlockX(), firstCorner.getBlockZ()),
-                        new Coordinate(firstCorner.getBlockX(), firstCorner.getBlockZ())
-                }), 16);
+        //TODO Check if it's right?
+        List<Coordinate> coordinates = GeometryUtils.getGridCoordinatesInPolygon(UtilizedPolygon.asSquare(world, firstCorner, secondCorner), 16);
 
         for(Coordinate coordinate : coordinates) {
             chunks.add(world.getChunkAt(Math.floorDiv((int) Math.floor(coordinate.x), 16), Math.floorDiv((int) Math.floor(coordinate.y), 16)));
@@ -244,7 +229,7 @@ public class ClaimingSession {
         var lineHologram = new Hologram(new Location(world, 0.5, 2, 0.5));
         lineHologram.append(HologramTextComponent.empty());
 
-        hologramArea = new HologramArea(world, createPolygon(firstCorner, secondCorner), true,
+        hologramArea = new HologramArea(world, createPolygon(null, firstCorner, secondCorner), true,
                 Material.YELLOW_CONCRETE,
                 Material.ORANGE_CONCRETE,
                 Material.REDSTONE_BLOCK,
@@ -330,12 +315,12 @@ public class ClaimingSession {
 
     //Previews
     public void drawCorners(boolean onlyHighest) {
-        Location firstCorner = this.firstCorner;
-        Location secondCorner = this.secondCorner;
+        var firstCorner = this.firstCorner;
+        var secondCorner = this.secondCorner;
 
-        Player owner = this.owner;
+        var owner = this.owner;
 
-        World world = this.world;
+        var world = this.world;
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -351,17 +336,13 @@ public class ClaimingSession {
     }
 
     //Boundaries
-    public Polygon createPolygon(@Nullable Location first, @Nullable Location second) {
+    public UtilizedPolygon createPolygon(@Nullable World world, @Nullable Location first, @Nullable Location second) {
+        world = world != null ? world : this.world;
 
-        Coordinate firstCoord = (first == null) ?
-                GeometryUtils.bukkitLocationToJTSCoordinate(firstCorner) :
-                GeometryUtils.bukkitLocationToJTSCoordinate(first);
+        first = (first == null) ? firstCorner : first;
+        second = (second == null) ? secondCorner : second;
 
-        Coordinate secondCoord = (second == null) ?
-                GeometryUtils.bukkitLocationToJTSCoordinate(secondCorner) :
-                GeometryUtils.bukkitLocationToJTSCoordinate(second);
-
-        return GeometryUtils.createSquare(firstCoord, secondCoord);
+        return UtilizedPolygon.asSquare(world, first, second);
 
     }
 
@@ -400,34 +381,11 @@ public class ClaimingSession {
         return null;
     }
 
-    public boolean isInBounds(@NotNull Location loc) {
-        if(isSelected() && !loc.getWorld().equals(firstCorner.getWorld())) { return false; }
-
-        Point point = GeometryUtils.bukkitLocationToJTSPoint(loc);
-        return createPolygon(firstCorner, secondCorner).intersects(point);
-    }
-
-    public boolean isInOutline(@NotNull Location loc) {
-        if(isSelected() && !loc.getWorld().equals(firstCorner.getWorld())) { return false; }
-
-        Point point = GeometryUtils.bukkitLocationToJTSPoint(loc);
-        return createPolygon(firstCorner, secondCorner).touches(point);
-    }
-
-    //Highest blocks
     public PlotCornerType isInHighestOnCorner(Location loc) {
         if (world.getHighestBlockAt(loc).getLocation().equals(loc)) {
             return getCorner(loc);
         }
         return null;
-    }
-
-    public boolean isInHighestOnBound(Location loc) {
-        return isInBounds(loc) && loc.toHighestLocation().equals(loc);
-    }
-
-    public boolean isInHighestOnOutline(Location loc) {
-        return isInOutline(loc) && world.getHighestBlockYAt(loc) == loc.getBlockY();
     }
 
 }

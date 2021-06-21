@@ -3,7 +3,6 @@ package com.customwrld.claims.gui;
 import com.customwrld.claims.Claims;
 import com.customwrld.claims.Plot;
 import com.customwrld.claims.gui.plot.GuiManagePlot;
-import com.customwrld.claims.utils.GeometryUtils;
 import com.customwrld.customlib.CustomLib;
 import com.customwrld.customlib.smartinvs.ClickableItem;
 import com.customwrld.customlib.smartinvs.SmartInventory;
@@ -46,7 +45,7 @@ public class GuiPlots implements InventoryProvider {
         var i = 0;
         for (Plot plot : plots) {
             Point center = plot.getPolygon().getCentroid();
-            int size = (int) GeometryUtils.getAccuratePolygon(plot.getPolygon()).getArea(); //TODO Generate the accurate polygon once for plot
+            int size = (int) plot.getPolygon().toAccurate().getArea(); //TODO Generate the accurate polygon once for plot
             items[i] = ClickableItem.of(
                     new ItemFactory(GuiMain.getPlotInformationItem(plot))
                             .setType(plot.isOwner(player) ? Material.LIME_CONCRETE : Material.LIGHT_BLUE_CONCRETE)

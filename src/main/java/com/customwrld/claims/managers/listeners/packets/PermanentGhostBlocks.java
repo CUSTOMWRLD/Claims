@@ -33,12 +33,17 @@ public class PermanentGhostBlocks extends PacketAdapter {
 
     @Override
     public void onPacketSending(PacketEvent event) {
-        PacketType packetType = event.getPacket().getType();
+        var packetType = event.getPacket().getType();
+
         if (packetType == PacketType.Play.Server.BLOCK_CHANGE) {
-            WrapperPlayServerBlockChange packet = new WrapperPlayServerBlockChange(event.getPacket());
-            Player player = event.getPlayer();
-            UUID uuid = player.getUniqueId();
-            for (ClaimingSession session : SessionsManager.getClaimingSessions()) {
+            var packet = new WrapperPlayServerBlockChange(event.getPacket());
+
+            var player = event.getPlayer();
+            var uuid = player.getUniqueId();
+
+            var location = packet.getBukkitLocation(player.getWorld());
+
+            for(ClaimingSession session : SessionsManager.getClaimingSessions()) {
                 Player owner = session.getOwner();
                 var ownerUUID = owner.getUniqueId();
                 if(!ownerUUID.equals(uuid)) { continue; }
@@ -46,10 +51,12 @@ public class PermanentGhostBlocks extends PacketAdapter {
                 if(!session.isSelected()) { continue; }
                 if(session.getHologramArea() == null || session.getHologramArea().isUpdating()) { continue; }
 
-                Location loc = packet.getBukkitLocation(player.getWorld());
-                if(session.isInHighestOnOutline(loc)) {
-                    WrappedBlockData retainedBlock = session.getHologramArea().retainBlock(owner, loc, packet.getBlockData().deepClone());
-                    if(retainedBlock != null) { packet.setBlockData(retainedBlock); }
+                if(session.getPolygon().isHighestOnOutline(location)) {
+                    WrappedBlockData retainedBlock = session.getHologramArea().retainBlock(owner, location, packet.getBlockData().deepClone());
+                    if(retainedBlock != null) {
+                        packet.setBlockData(retainedBlock);
+                        return;
+                    }
                 }
             }
         } else if (packetType == PacketType.Play.Server.MULTI_BLOCK_CHANGE) {
@@ -69,7 +76,7 @@ public class PermanentGhostBlocks extends PacketAdapter {
                         for (BlockPosition blockPosition : blockPositions) {
                             Location location = blockPosition.toLocation(player.getWorld());
                             if (ownerUUID.equals(uuid) && session.isSelected() && !session.getHologramArea().isUpdating()) {
-                                if(session.isInHighestOnOutline(location)) {
+                                if(session.getPolygon().isHighestOnOutline(location)) {
                                     session.getHologramArea().drawBlock(player, location);
                                 }
                             }
@@ -103,7 +110,7 @@ public class PermanentGhostBlocks extends PacketAdapter {
                         for (BlockPosition blockPosition : blockPositions) {
                             Location location = blockPosition.toLocation(player.getWorld());
                             if (ownerUUID.equals(uuid) && session.isSelected() && !session.getHologramArea().isUpdating()) {
-                                if(session.isInHighestOnOutline(location)) {
+                                if(session.getPolygon().isHighestOnOutline(location)) {
                                     session.getHologramArea().drawBlock(player, location);
                                 }
                             }

@@ -7,7 +7,6 @@ import com.customwrld.claims.managers.PreviewManager;
 import com.customwrld.claims.permissions.groups.GroupHolder;
 import com.customwrld.claims.permissions.groups.PlotGroup;
 import com.customwrld.claims.utils.BalanceUtils;
-import com.customwrld.claims.utils.GeometryUtils;
 import com.customwrld.customlib.CustomLib;
 import com.customwrld.customlib.smartinvs.ClickableItem;
 import com.customwrld.customlib.smartinvs.SmartInventory;
@@ -101,7 +100,7 @@ public class GuiMain implements InventoryProvider {
 
     public static ItemStack getPlotInformationItem(Plot plot){
         Point center = plot.getPolygon().getCentroid();
-        int size = (int) GeometryUtils.getAccuratePolygon(plot.getPolygon()).getArea(); //TODO Generate the accurate polygon once for plot
+        int size = (int) plot.getPolygon().toAccurate().getArea(); //TODO Generate the accurate polygon once for plot
         return new ItemFactory(Material.NOTE_BLOCK)
                 .setName(ChatColor.BLUE + plot.getName())
                 .setLore(

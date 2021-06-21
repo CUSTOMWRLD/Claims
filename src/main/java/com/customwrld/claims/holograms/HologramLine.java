@@ -2,9 +2,12 @@ package com.customwrld.claims.holograms;
 
 import com.comphenix.protocol.wrappers.WrappedBlockData;
 import com.customwrld.claims.utils.GeometryUtils;
+import com.customwrld.claims.utils.UtilizedPolygon;
 import com.customwrld.customlib.hologram.Hologram;
 import com.customwrld.customlib.util.LocationUtil;
-import lombok.*;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
 import org.bukkit.Axis;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -15,7 +18,6 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Polygon;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -112,7 +114,7 @@ public class HologramLine {
 
     //TODO Maybe find a better way instead of having a ton of arguments?
     public static List<HologramLine> fromPolygon(@NotNull World world,
-                                                 @NotNull Polygon polygon,
+                                                 @NotNull UtilizedPolygon polygon,
 
                                                  int startingId,
                                                  boolean highestBlocksOnly,
@@ -152,7 +154,7 @@ public class HologramLine {
     }
 
     public static void updateLinesFromPolygon(@NotNull List<HologramLine> lines,
-                                              @NotNull Polygon newPolygon) {
+                                              @NotNull UtilizedPolygon newPolygon) {
 
         Coordinate[] coordinates = newPolygon.getCoordinates();
 
@@ -368,6 +370,7 @@ public class HologramLine {
     }
 
     public int getLength() {
+
         int startX = (int) start.getX();
         int startZ = (int) start.getY();
 
@@ -375,6 +378,7 @@ public class HologramLine {
         int endZ = (int) end.getY();
 
         return axis == Axis.X ? Math.abs(endX - startX) : Math.abs(endZ - startZ);
+
     }
 
     private void recalculate() {
