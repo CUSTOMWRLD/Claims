@@ -1,7 +1,6 @@
 package com.customwrld.claims.managers.listeners.bukkit;
 
 import com.customwrld.claims.Claims;
-import com.customwrld.claims.Plot;
 import com.customwrld.claims.gui.plot.GuiPlotOptions;
 import com.customwrld.claims.gui.plot.modals.ModalConfirmation;
 import com.customwrld.claims.managers.DatabaseManager;
@@ -11,10 +10,7 @@ import com.customwrld.claims.permissions.PlotPermissionLevel;
 import com.customwrld.customlib.smartinvs.ClickableItem;
 import com.customwrld.customlib.util.ItemFactory;
 import net.md_5.bungee.api.ChatColor;
-import org.bukkit.Bukkit;
-import org.bukkit.Effect;
-import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
@@ -36,7 +32,6 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.StructureGrowEvent;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.projectiles.BlockProjectileSource;
 import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -45,6 +40,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 public class PlotListeners {
+    private PlotListeners() { }
 
     public static class PlotEvents implements Listener {
 
@@ -60,7 +56,8 @@ public class PlotListeners {
 
             var player = event.getPlayer();
             if (!plot.hasPermission(player, PlotPermission.BLOCK_BREAK)) {
-                player.playEffect(block.getLocation().add(0, 1, 0), Effect.SMOKE, BlockFace.UP);
+                var blockLocation = block.getLocation();
+                playAccessDeniedEffect(player, null, blockLocation.add(0, 1, 0));
                 event.setCancelled(true);
             }
 
@@ -76,23 +73,32 @@ public class PlotListeners {
 
             var player = event.getPlayer();
             if (!plot.hasPermission(player, PlotPermission.BLOCK_PLACE)) {
-                player.playEffect(block.getLocation(), Effect.SMOKE, BlockFace.UP);
+                var blockLocation = block.getLocation();
+                playAccessDeniedEffect(player, null, blockLocation);
                 event.setCancelled(true);
             }
 
         }
 
-        //TODO Experiment, Possible use without the need for packets?
-//        @EventHandler
-//        public void blockPlace(BlockMultiPlaceEvent event) {
-//            Block block = event.getBlock();
-//            Plot plot = Claims.plotsManager.getPlotOnCoordinates(block.getWorld(), block.getX(), block.getZ());
-//            if (plot != null) {
-//                if (!plot.hasPermission(event.getPlayer(), EnumPermission.BLOCK_PLACE)) {
-//                    event.setCancelled(true);
-//                }
-//            }
-//        }
+        @EventHandler
+        public void blockPlace(BlockMultiPlaceEvent event) {
+
+            var block = event.getBlock();
+
+            for(BlockState newBlockState : event.getReplacedBlockStates()) {
+                var plot = Claims.plotsManager.getPlotOnLocation(newBlockState.getWorld(), newBlockState.getX(), newBlockState.getZ());
+                if (plot == null) { return; }
+
+                var player = event.getPlayer();
+                if (!plot.hasPermission(player, PlotPermission.BLOCK_PLACE)) {
+                    var blockLocation = block.getLocation();
+                    playAccessDeniedEffect(player, null, blockLocation);
+                    event.setCancelled(true);
+                    break;
+                }
+            }
+
+        }
 
         @EventHandler
         public void blockInteracted(PlayerInteractEvent event) {
@@ -104,8 +110,8 @@ public class PlotListeners {
             if(plot == null) { return; }
 
             var player = event.getPlayer();
-            if (!plot.hasPermission(player, PlotPermission.BLOCK_BREAK)) {
-                player.playEffect(block.getLocation(), Effect.SMOKE, BlockFace.UP);
+            if (!plot.hasPermission(player, PlotPermission.BLOCK_INTERACT)) {
+                playAccessDeniedEffect(player, null, block.getLocation());
                 event.setUseInteractedBlock(Event.Result.DENY);
                 event.setCancelled(true);
             }
@@ -118,25 +124,19 @@ public class PlotListeners {
             ThrownPotion potion = event.getEntity();
             ProjectileSource source = potion.getShooter();
 
-            Location location = potion.getLocation();
+            var location = potion.getLocation();
 
-            Plot plot = Claims.plotsManager.getPlotOnLocation(potion.getWorld(), location.getBlockX(), location.getBlockZ());
+            var plot = Claims.plotsManager.getPlotOnLocation(potion.getWorld(), location.getBlockX(), location.getBlockZ());
             if (plot == null) { return; }
 
-            if (source instanceof Player) {
+            if (source instanceof Player player && !plot.hasPermission(player, PlotPermission.PLAYER_SPLASH_POTIONS)) {
+                event.setCancelled(true);
 
-                Player player = (Player) source;
+            } else if (source instanceof BlockProjectileSource blockSource) {
+                var block = blockSource.getBlock();
+                var sourceLocation = block.getLocation();
 
-                if (!plot.hasPermission(player, PlotPermission.PLAYER_SPLASH_POTIONS)) { event.setCancelled(true); }
-
-            } else if (source instanceof BlockProjectileSource) {
-
-                BlockProjectileSource blockSource = (BlockProjectileSource) source;
-                Block block = blockSource.getBlock();
-                Location blockLocation = block.getLocation();
-
-                if (!plot.isInside(blockLocation)) { event.setCancelled(true); }
-
+                if (!plot.isInside(sourceLocation)) { event.setCancelled(true); }
             }
 
         }
@@ -144,17 +144,15 @@ public class PlotListeners {
         @EventHandler
         public void animalDamagedByEntity(EntityDamageByEntityEvent event) {
 
-            Entity victim = event.getEntity();
-            Entity damager = event.getDamager();
+            var victim = event.getEntity();
+            var damager = event.getDamager();
 
-            if(!((victim instanceof Animals || victim instanceof NPC) && damager instanceof Player)) { return; }
+            if(!((victim instanceof Animals || victim instanceof NPC) && damager instanceof Player player)) { return; }
 
-            Location location = victim.getLocation();
+            var location = victim.getLocation();
 
-            Plot plot = Claims.plotsManager.getPlotOnLocation(location.getWorld(), location.getBlockX(), location.getBlockZ());
+            var plot = Claims.plotsManager.getPlotOnLocation(location);
             if (plot == null) { return; }
-
-            Player player = (Player) damager;
 
             if (!plot.hasPermission(player, PlotPermission.PLAYER_ATTACK_ANIMALS)) { event.setCancelled(true); }
 
@@ -163,22 +161,19 @@ public class PlotListeners {
         @EventHandler
         public void animalDamagedByBlock(EntityDamageByBlockEvent event) {
 
-            Entity victim = event.getEntity();
+            var victim = event.getEntity();
 
-            Block damager = event.getDamager();
+            var damager = event.getDamager();
             if(damager == null) { return; }
 
             if(victim instanceof Animals || victim instanceof NPC) {
+                var victimLocation = victim.getLocation();
+                var blockLocation = damager.getLocation();
 
-                Location location = victim.getLocation();
+                var plot = Claims.plotsManager.getPlotOnLocation(victimLocation);
+                if (plot == null || plot.isInside(blockLocation)) { return; }
 
-                Plot plot = Claims.plotsManager.getPlotOnLocation(location);
-                if (plot == null) { return; }
-
-                Location blockLocation = damager.getLocation();
-
-                if (!plot.isInside(blockLocation)) { event.setCancelled(true); }
-
+                event.setCancelled(true);
             }
 
         }
@@ -186,27 +181,40 @@ public class PlotListeners {
         @EventHandler
         public void containerOpened(InventoryOpenEvent event) {
 
-            Inventory inventory = event.getInventory();
-            Player player = (Player) event.getPlayer();
+            var inventory = event.getInventory();
+            var player = (Player) event.getPlayer();
 
-            Location location = inventory.getLocation();
+            var location = inventory.getLocation();
             if(location == null) { return; }
 
             switch(inventory.getType()) {
-                case CHEST:
-                case SHULKER_BOX:
-                case BARREL:
-                case DROPPER:
-                case DISPENSER:
-                case BREWING:
-                case BEACON:
-                case HOPPER:
-                case LECTERN:
+                //STORAGE_CHESTS
+                case BARREL, BEACON, BREWING, CHEST, DROPPER, DISPENSER, HOPPER, LECTERN, SHULKER_BOX:
 
-                    Plot plot = Claims.plotsManager.getPlotOnLocation(location);
+                    var plot = Claims.plotsManager.getPlotOnLocation(location);
                     if (plot == null) { return; }
 
                     if(!plot.hasPermission(player, PlotPermission.STORAGE_CHESTS)) { event.setCancelled(true); }
+
+                    break;
+
+                //STORAGE_FURNACES
+                case BLAST_FURNACE, FURNACE, SMOKER:
+
+                    plot = Claims.plotsManager.getPlotOnLocation(location);
+                    if (plot == null) { return; }
+
+                    if(!plot.hasPermission(player, PlotPermission.STORAGE_FURNACES)) { event.setCancelled(true); }
+
+                    break;
+
+                //STORAGE_ENCHANTMENT_TABLE
+                case ENCHANTING:
+
+                    plot = Claims.plotsManager.getPlotOnLocation(location);
+                    if (plot == null) { return; }
+
+                    if(!plot.hasPermission(player, PlotPermission.STORAGE_ENCHANTMENT_TABLE)) { event.setCancelled(true); }
 
                     break;
 
@@ -219,55 +227,36 @@ public class PlotListeners {
 
                     break;
 
-                case FURNACE:
-                case SMOKER:
-                case BLAST_FURNACE:
-
-                    plot = Claims.plotsManager.getPlotOnLocation(location);
-                    if (plot == null) { return; }
-
-                    if(!plot.hasPermission(player, PlotPermission.STORAGE_FURNACES)) { event.setCancelled(true); }
-
-                    break;
-
-                case ENCHANTING:
-
-                    plot = Claims.plotsManager.getPlotOnLocation(location);
-                    if (plot == null) { return; }
-
-                    if(!plot.hasPermission(player, PlotPermission.STORAGE_ENCHANTMENT_TABLE)) { event.setCancelled(true); }
-
-                    break;
-
+                default:
+                    return;
             }
 
             if(event.isCancelled())
-                player.playEffect(inventory.getLocation(), Effect.SMOKE, BlockFace.UP);
+                playAccessDeniedEffect(player, null, inventory.getLocation());
+
         }
 
         @EventHandler
         public void movedItemsBetweenInventories(InventoryMoveItemEvent event) {
 
-            Inventory source = event.getSource();
-            Inventory destination = event.getDestination();
+            var sourceInv = event.getSource();
+            var destinationInv = event.getDestination();
 
-            if(destination.getType() != InventoryType.HOPPER || destination.getHolder() instanceof HopperMinecart) { return; }
+            if(destinationInv.getType() != InventoryType.HOPPER || destinationInv.getHolder() instanceof HopperMinecart) { return; }
 
-            Location sourceLocation = source.getLocation();
-            if(sourceLocation == null) { return; }
+            var sourceLoc = sourceInv.getLocation();
+            var destinationLoc = destinationInv.getLocation();
+            if(sourceLoc == null || destinationLoc == null) { return; }
 
-            Plot plot = Claims.plotsManager.getPlotOnLocation(sourceLocation);
+            var plot = Claims.plotsManager.getPlotOnLocation(sourceLoc);
             if (plot == null) { return; }
-
-            Location destinationLocation = destination.getLocation();
-            if(destinationLocation == null) { return; }
 
             if (plot.getPermissionLevel(PlotPermission.STORAGE_CHESTS) == PlotPermissionLevel.ALL) { return; }
 
-            Block hopper = destinationLocation.getBlock();
+            var hopper = destinationLoc.getBlock();
 
-            Hopper hopperData = (Hopper) hopper.getBlockData();
-            Location hopperDestination = destinationLocation.clone().add(hopperData.getFacing().getDirection());
+            var hopperData = (Hopper) hopper.getBlockData();
+            Location hopperDestination = destinationLoc.clone().add(hopperData.getFacing().getDirection());
 
             if(!plot.isInside(hopperDestination)) { event.setCancelled(true); }
 
@@ -278,17 +267,18 @@ public class PlotListeners {
         @EventHandler
         public void playerDamagedByEntity(EntityDamageByEntityEvent event) {
 
-            Entity victim = event.getEntity();
-            Entity damager = event.getDamager();
+            var victim = event.getEntity();
+            var damager = event.getDamager();
 
             if(!(victim instanceof Player && damager instanceof Player)) { return; }
 
-            Location location = victim.getLocation();
+            var location = victim.getLocation();
 
-            Plot plot = Claims.plotsManager.getPlotOnLocation(location.getWorld(), location.getBlockX(), location.getBlockZ());
+            var plot = Claims.plotsManager.getPlotOnLocation(location.getWorld(), location.getBlockX(), location.getBlockZ());
             if (plot == null) { return; }
 
-            Player player = (Player) damager;
+            //TODO Check if a player has PvP disabled?
+            //Player player = (Player) damager;
 
             if (!plot.isOptionEnabled(PlotOption.PVP)) { event.setCancelled(true); }
 
@@ -303,9 +293,9 @@ public class PlotListeners {
 
             affectedBlocks.removeIf(block -> {
 
-                Location location = block.getLocation();
+                var location = block.getLocation();
 
-                Plot plot = Claims.plotsManager.getPlotOnLocation(location);
+                var plot = Claims.plotsManager.getPlotOnLocation(location);
                 if (plot == null) { return false; }
 
                 return ((entity instanceof Explosive || entity instanceof EnderCrystal) && !plot.isOptionEnabled(PlotOption.EXPLOSION_GRIEF)) ||
@@ -322,9 +312,9 @@ public class PlotListeners {
 
             if(!(entity instanceof Mob)) { return; }
 
-            Location location = entity.getLocation();
+            var location = entity.getLocation();
 
-            Plot plot = Claims.plotsManager.getPlotOnLocation(location.getWorld(), location.getBlockX(), location.getBlockZ());
+            var plot = Claims.plotsManager.getPlotOnLocation(location.getWorld(), location.getBlockX(), location.getBlockZ());
             if (plot == null) { return; }
 
             if (!plot.isOptionEnabled(PlotOption.MOB_SPAWN)) { event.setCancelled(true); }
@@ -336,10 +326,10 @@ public class PlotListeners {
         @EventHandler
         public void entityChangedBlock(EntityChangeBlockEvent event) {
 
-            Block block = event.getBlock();
-            Location location = block.getLocation();
+            var block = event.getBlock();
+            var location = block.getLocation();
 
-            Plot plot = Claims.plotsManager.getPlotOnLocation(location);
+            var plot = Claims.plotsManager.getPlotOnLocation(location);
             if (plot == null) { return; }
 
             if (!plot.isOptionEnabled(PlotOption.MOB_GRIEF)) { event.setCancelled(true); }
@@ -351,13 +341,13 @@ public class PlotListeners {
         @EventHandler
         public void blockSpread(BlockSpreadEvent event) {
 
-            Block block = event.getBlock();
-            Location location = block.getLocation();
+            var block = event.getBlock();
+            var location = block.getLocation();
 
-            Plot plot = Claims.plotsManager.getPlotOnLocation(location);
+            var plot = Claims.plotsManager.getPlotOnLocation(location);
             if (plot == null) { return; }
 
-            Material material = block.getType();
+            var material = block.getType();
 
             if ((material == Material.MYCELIUM && !plot.isOptionEnabled(PlotOption.MYCELIUM_SPREAD)) ||
                     (material == Material.GRASS_BLOCK && !plot.isOptionEnabled(PlotOption.GRASS_SPREAD))) { event.setCancelled(true); }
@@ -367,10 +357,10 @@ public class PlotListeners {
         @EventHandler
         public void leafDecayed(LeavesDecayEvent event) {
 
-            Block block = event.getBlock();
-            Location location = block.getLocation();
+            var block = event.getBlock();
+            var location = block.getLocation();
 
-            Plot plot = Claims.plotsManager.getPlotOnLocation(location);
+            var plot = Claims.plotsManager.getPlotOnLocation(location);
             if (plot == null) { return; }
 
             if (!plot.isOptionEnabled(PlotOption.LEAF_DECAY)) { event.setCancelled(true); }
@@ -380,14 +370,14 @@ public class PlotListeners {
         @EventHandler
         public void structureGrew(StructureGrowEvent event) {
 
-            Location origin = event.getLocation();
+            var origin = event.getLocation();
             List<BlockState> blocks = event.getBlocks();
 
             blocks.removeIf(block -> {
 
-                Location location = block.getLocation();
+                var location = block.getLocation();
 
-                Plot plot = Claims.plotsManager.getPlotOnLocation(location);
+                var plot = Claims.plotsManager.getPlotOnLocation(location);
                 if(plot == null) { return false; }
 
                 return !plot.isInside(origin) && !plot.isOptionEnabled(PlotOption.GROW_FROM_OUTSIDE);
@@ -452,10 +442,11 @@ public class PlotListeners {
                 if(!plot.isOptionEnabled(PlotOption.PISTON_FROM_OUTSIDE) && !plot.isInside(movedLocation)) {
                     var world = plot.getWorld();
                     world.playEffect(headLocation, Effect.SMOKE, BlockFace.UP);
+
                     event.setCancelled(true);
+
                     break;
                 }
-
             }
 
         }
@@ -463,39 +454,45 @@ public class PlotListeners {
         @EventHandler
         public void fluidFlow(BlockFromToEvent event) {
 
-            Block toBlock = event.getToBlock();
-            Location destination = toBlock.getLocation();
+            var toBlock = event.getToBlock();
+            var destination = toBlock.getLocation();
 
-            Plot plot = Claims.plotsManager.getPlotOnLocation(destination);
-            if (plot == null) { return; }
+            var fromBlock = event.getBlock();
+            var source = fromBlock.getLocation();
 
-            Block fromBlock = event.getBlock();
-            Location source = fromBlock.getLocation();
+            var plot = Claims.plotsManager.getPlotOnLocation(destination);
+            if (plot == null || plot.isInside(source)) { return; }
 
-            if (!plot.isInside(source) && !plot.isOptionEnabled(PlotOption.FLUIDS_FROM_OUTSIDE)) { event.setCancelled(true); }
+            if (!plot.isOptionEnabled(PlotOption.FLUIDS_FROM_OUTSIDE)) { event.setCancelled(true); }
 
         }
 
         @EventHandler
         public void dispenserActivated(BlockDispenseEvent event) {
 
-            Block dispenser = event.getBlock();
-            Location location = dispenser.getLocation();
+            var dispenser = event.getBlock();
+            var location = dispenser.getLocation();
 
-            Dispenser dispenserData = (Dispenser) dispenser.getBlockData();
+            var dispenserData = (Dispenser) dispenser.getBlockData();
             Location destination = location.clone().add(dispenserData.getFacing().getDirection());
 
-            Plot plot = Claims.plotsManager.getPlotOnLocation(destination);
-            if (plot == null) { return; }
+            var plot = Claims.plotsManager.getPlotOnLocation(destination);
+            if (plot == null || plot.isInside(location)) { return; }
 
             if (plot.isOptionEnabled(PlotOption.DISPENSERS_FROM_OUTSIDE)) { return; }
 
-            if(!plot.isInside(location)) {
-                var world = plot.getWorld();
-                world.playEffect(destination, Effect.SMOKE, BlockFace.UP);
-                event.setCancelled(true);
-            }
+            var world = plot.getWorld();
+            playAccessDeniedEffect(null, world, destination);
+            event.setCancelled(true);
 
+        }
+
+        private void playAccessDeniedEffect(@Nullable Player player, @Nullable World world, Location location) {
+            if(player != null) {
+                player.playEffect(location, Effect.SMOKE, BlockFace.UP);
+            } else if(world != null) {
+                world.playEffect(location, Effect.SMOKE, BlockFace.UP);
+            }
         }
 
     }
@@ -522,12 +519,13 @@ public class PlotListeners {
 
     public static class PlotGUIs implements Listener {
 
+        //TODO Make use of chat procedures
         @EventHandler
         public void renamePlot(AsyncPlayerChatEvent event) {
 
-            Player player = event.getPlayer();
+            var player = event.getPlayer();
 
-            Plot plot = GuiPlotOptions.getRenamingRequired().get(player);
+            var plot = GuiPlotOptions.getRenamingRequired().get(player);
             if(plot == null) { return; }
 
             String newName = ChatColor.stripColor(event.getMessage());
@@ -537,21 +535,25 @@ public class PlotListeners {
                 @Override
                 public void run() {
 
-                    ModalConfirmation.createModal("Are you sure?", new ItemFactory(Material.NOTE_BLOCK)
+                    ModalConfirmation.createModal(
+                            "Are you sure?",
+
+                            new ItemFactory(Material.NOTE_BLOCK)
                                     .setName(ChatColor.WHITE + "Do you want to rename plot \"" + plot.getName() + "\" to \"" + newName + "\"?")
                                     .build(),
 
-                            ClickableItem.of(new ItemFactory(Material.LIME_CONCRETE).setName(ChatColor.GREEN + "Yes").build(), acceptClickEvent -> {
-                                plot.setName(newName);
-                                DatabaseManager.savePlot(plot);
-                                player.closeInventory();
-                                GuiPlotOptions.getInventory(plot).open(player);
-                            }),
+                            ClickableItem.of(
+                                    new ItemFactory(Material.LIME_CONCRETE).setName(ChatColor.GREEN + "Yes").build(),
+                                    acceptClickEvent -> {
+                                        plot.setName(newName);
+                                        DatabaseManager.savePlot(plot);
+                                        GuiPlotOptions.getInventory(plot).open(player);
+                                    }),
 
-                            ClickableItem.of(new ItemFactory(Material.RED_CONCRETE).setName(ChatColor.RED + "No").build(), declineClickEvent -> {
-                                player.closeInventory();
-                                GuiPlotOptions.getInventory(plot).open(player);
-                            })).open(player);
+                            ClickableItem.of(
+                                    new ItemFactory(Material.RED_CONCRETE).setName(ChatColor.RED + "No").build(),
+                                    declineClickEvent -> GuiPlotOptions.getInventory(plot).open(player))
+                    ).open(player);
 
                     GuiPlotOptions.getRenamingRequired().remove(player);
                 }
