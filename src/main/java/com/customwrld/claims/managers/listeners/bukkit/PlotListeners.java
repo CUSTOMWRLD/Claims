@@ -388,58 +388,33 @@ public class PlotListeners {
 
         @EventHandler
         public void pistonExtended(BlockPistonExtendEvent event) {
-
-            Block piston = event.getBlock();
-            Location pistonLocation = piston.getLocation();
-
             List<Block> blocks = event.getBlocks();
-            BlockFace direction = event.getDirection();
-
-            Location headLocation = pistonLocation.clone().add(direction.getDirection());
-
-            var plot = Claims.plotsManager.getPlotOnLocation(headLocation);
-
-            for(Block block : blocks) {
-
-                Location location = block.getLocation();
-                Location movedLocation = location.clone().add(direction.getDirection());
-
-                plot = Claims.plotsManager.getPlotOnLocation(movedLocation);
-
-                if(plot.isInside(pistonLocation)) { continue; }
-
-                if (!plot.isOptionEnabled(PlotOption.PISTON_FROM_OUTSIDE)) {
-                    var world = plot.getWorld();
-                    world.playEffect(headLocation, Effect.SMOKE, BlockFace.UP);
-                    event.setCancelled(true);
-                    break;
-                }
-
-            }
-
+            handlePistonEvent(event, blocks);
         }
 
         @EventHandler
         public void pistonRetracted(BlockPistonRetractEvent event) {
-
-            Block piston = event.getBlock();
-            Location pistonLocation = piston.getLocation();
-
             List<Block> blocks = event.getBlocks();
-            BlockFace direction = event.getDirection();
+            handlePistonEvent(event, blocks);
+        }
 
-            Location headLocation = pistonLocation.clone().add(direction.getDirection());
+        private void handlePistonEvent(BlockPistonEvent event, List<Block> blocks) {
+
+            var piston = event.getBlock();
+            var pistonLocation = piston.getLocation();
+
+            BlockFace pistonDirection = event.getDirection();
 
             for(Block block : blocks) {
+                var location = block.getLocation();
+                var movedLocation = location.add(pistonDirection.getDirection());
 
-                Location location = block.getLocation();
+                var plot = Claims.plotsManager.getPlotOnLocation(movedLocation);
+                if(plot == null || plot.isInside(pistonLocation)) { continue; }
 
-                Plot plot = Claims.plotsManager.getPlotOnLocation(location);
-                if(plot.isInside(pistonLocation)) { continue; }
+                if(!plot.isOptionEnabled(PlotOption.PISTON_FROM_OUTSIDE)) {
+                    var headLocation = pistonLocation.clone().add(pistonDirection.getDirection());
 
-                Location movedLocation = location.add(direction.getDirection());
-
-                if(!plot.isOptionEnabled(PlotOption.PISTON_FROM_OUTSIDE) && !plot.isInside(movedLocation)) {
                     var world = plot.getWorld();
                     world.playEffect(headLocation, Effect.SMOKE, BlockFace.UP);
 
