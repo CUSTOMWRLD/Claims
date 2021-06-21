@@ -90,8 +90,10 @@ public class WandListeners {
 
         @EventHandler
         public void disableInteract(PlayerInteractEvent event) {
-            Player player = event.getPlayer();
-            if (SessionsManager.isClaiming(player)) { event.setCancelled(true); }
+            var player = event.getPlayer();
+            var action = event.getAction();
+
+            if (SessionsManager.isClaiming(player) && action != Action.PHYSICAL) { event.setCancelled(true); }
         }
 
         @EventHandler
